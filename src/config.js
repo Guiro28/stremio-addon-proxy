@@ -60,8 +60,19 @@ function getAddon(id) {
 
 function addAddon({ name, manifestUrl }) {
   const id = crypto.randomBytes(5).toString('hex');
-  const addon = { id, name, manifestUrl, addedAt: new Date().toISOString() };
+  // name = nom d'origine du manifest. displayName = ce qui s'affiche dans Stremio,
+  // modifiable ensuite depuis le dashboard (défaut : "<nom d'origine> (proxy)").
+  const addon = { id, name, displayName: `${name} (proxy)`, manifestUrl, addedAt: new Date().toISOString() };
   state.addons.push(addon);
+  save();
+  return addon;
+}
+
+function renameAddon(id, displayName) {
+  const addon = state.addons.find((a) => a.id === id);
+  const dn = String(displayName || '').trim();
+  if (!addon || !dn) return null;
+  addon.displayName = dn;
   save();
   return addon;
 }
@@ -90,4 +101,4 @@ function setSettings(next) {
 
 load();
 
-module.exports = { load, save, getState, getAddon, addAddon, removeAddon, setSettings, DATA_DIR };
+module.exports = { load, save, getState, getAddon, addAddon, removeAddon, renameAddon, setSettings, DATA_DIR };

@@ -34,6 +34,8 @@
     .addon { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line);
       border-radius: 11px; margin-top: 10px; background: #12162a; }
     .addon .name { font-weight: 600; }
+    .addon .name input.rename { width: auto; min-width: 180px; padding: 4px 8px; margin-right: 6px;
+      font-size: 13px; font-weight: 400; display: inline-block; }
     .addon .url { color: var(--muted); font-size: 12px; word-break: break-all; }
     .addon .actions { display: flex; gap: 8px; }
     .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px;
@@ -177,14 +179,17 @@ function renderList(addons) {
     const stremioLink = a.installUrl.replace(/^https?:\/\//, 'stremio://');
     const div = document.createElement('div');
     div.className = 'addon';
+    const display = a.displayName || a.name;
     div.innerHTML = `
-      <div style="flex:1">
-        <div class="name">${escapeHtml(a.name)}</div>
+      <div style="flex:1; min-width:0">
+        <div class="name">${escapeHtml(display)}</div>
+        <div class="hint" style="margin-top:0">d'origine : ${escapeHtml(a.name)}</div>
         <div class="url">${escapeHtml(a.installUrl)}</div>
       </div>
       <div class="actions">
         <a href="${stremioLink}"><button class="small">Installer</button></a>
         <button class="small ghost" data-copy="${encodeURIComponent(a.installUrl)}">Copier</button>
+        <button class="small ghost" data-rename="${a.id}" data-current="${encodeURIComponent(display)}">Renommer</button>
         <button class="small danger" data-del="${a.id}">Suppr.</button>
       </div>`;
     el.appendChild(div);
@@ -192,6 +197,32 @@ function renderList(addons) {
   el.querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => {
     await api('/api/addons/' + b.dataset.del, { method: 'DELETE' });
     refresh();
+  });
+  el.querySelectorAll('[data-rename]').forEach((b) => b.onclick = () => {
+    const id = b.dataset.rename;
+    const nameDiv = b.closest('.addon').querySelector('.name');
+    const current = decodeURIComponent(b.dataset.current);
+    nameDiv.innerHTML = `<input class="rename" value="${escapeHtml(current)}" />`
+      + `<button class="small" data-save>✓</button>`
+      + `<button class="small ghost" data-cancel>✗</button>`;
+    const input = nameDiv.querySelector('input');
+    input.focus(); input.select();
+    const save = async () => {
+      const val = input.value.trim();
+      if (!val) return;
+      try {
+        await api('/api/addons/' + id, { method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ displayName: val }) });
+        refresh();
+      } catch (e) { alert(e.message); }
+    };
+    nameDiv.querySelector('[data-save]').onclick = save;
+    nameDiv.querySelector('[data-cancel]').onclick = () => refresh();
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') save();
+      if (e.key === 'Escape') refresh();
+    });
   });
   el.querySelectorAll('[data-copy]').forEach((b) => b.onclick = async () => {
     await navigator.clipboard.writeText(decodeURIComponent(b.dataset.copy));

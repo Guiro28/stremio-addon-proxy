@@ -41,7 +41,8 @@ async function fetchManifest(addon, upstream) {
 
   // Namespacing pour ne pas entrer en conflit avec l'addon d'origine si les deux sont installes.
   if (manifest.id) manifest.id = `${manifest.id}.wproxy`;
-  if (manifest.name) manifest.name = `${manifest.name} (proxy)`;
+  // Nom affiche dans Stremio : le nom personnalise du dashboard, sinon "<origine> (proxy)".
+  manifest.name = addon.displayName || (manifest.name ? `${manifest.name} (proxy)` : manifest.name);
   return manifest;
 }
 

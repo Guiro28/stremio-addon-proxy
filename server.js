@@ -93,6 +93,7 @@ app.get('/api/state', (req, res) => {
     settings: s.settings,
     addons: s.addons.map((a) => ({
       ...a,
+      displayName: a.displayName || `${a.name} (proxy)`,
       installUrl: `${baseUrl(req)}/${a.id}/manifest.json`
     }))
   });
@@ -126,6 +127,13 @@ app.post('/api/addons', async (req, res) => {
 app.delete('/api/addons/:id', (req, res) => {
   const ok = config.removeAddon(req.params.id);
   res.status(ok ? 200 : 404).json({ ok });
+});
+
+// Renomme un addon (nom affiche dans Stremio).
+app.patch('/api/addons/:id', (req, res) => {
+  const addon = config.renameAddon(req.params.id, req.body && req.body.displayName);
+  if (!addon) return res.status(400).json({ error: 'Nom invalide ou addon inconnu' });
+  res.json(addon);
 });
 
 app.post('/api/settings', (req, res) => {
