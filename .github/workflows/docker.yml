@@ -133,8 +133,12 @@ jobs:
 
       - name: Vérifier le manifeste multi-architecture
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
+          # github.repository peut contenir des majuscules ; Docker exige des minuscules.
+          IMAGE="$(echo "${REGISTRY}/${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')@${DIGEST}"
           docker buildx imagetools inspect "$IMAGE" | tee manifest.txt
           grep -q 'Platform:.*linux/amd64' manifest.txt
           grep -q 'Platform:.*linux/arm64' manifest.txt
