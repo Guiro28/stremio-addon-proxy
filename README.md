@@ -130,14 +130,14 @@ publie une image **multi-arch (amd64 + arm64)** sur le GitHub Container Registry
 push sur `main` (et sur les tags `v*`). Image :
 
 ```
-ghcr.io/kesurof/stremio-addon-proxy:latest
+ghcr.io/guiro28/stremio-addon-proxy:latest
 ```
 
 Pour l'utiliser au lieu de builder localement, décommente la ligne `image:` dans le
 compose (et retire `build: .`).
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u kesurof --password-stdin
+echo $GHCR_TOKEN | docker login ghcr.io -u guiro28 --password-stdin
 ```
 
 (`GHCR_TOKEN` = un *Personal Access Token* GitHub avec le scope `read:packages`.)
