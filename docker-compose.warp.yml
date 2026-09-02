@@ -36,7 +36,7 @@ services:
       start_period: 20s
 
   stremio-proxy:
-    image: ghcr.io/guiro28/stremio-addon-proxy:latest
+    image: ghcr.io/kesurof/stremio-addon-proxy:latest
     # Pour builder localement au lieu de tirer l'image, remplace la ligne ci-dessus par :
     # build: .
     container_name: stremio-proxy

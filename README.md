@@ -71,6 +71,8 @@ Dans l'onglet **Sortie réseau** de l'interface :
 
 Le bouton **« Tester l'IP de sortie »** interroge un service d'écho et t'affiche l'IP
 publique réellement utilisée : pratique pour vérifier que WARP est bien pris en compte.
+L'interface détecte aussi automatiquement WARP et affiche son statut ainsi que l'URL
+SOCKS5 à utiliser lorsqu'elle est disponible.
 
 ### Mettre WARP en SOCKS5
 
@@ -128,15 +130,14 @@ publie une image **multi-arch (amd64 + arm64)** sur le GitHub Container Registry
 push sur `main` (et sur les tags `v*`). Image :
 
 ```
-ghcr.io/guiro28/stremio-addon-proxy:latest
+ghcr.io/kesurof/stremio-addon-proxy:latest
 ```
 
 Pour l'utiliser au lieu de builder localement, décommente la ligne `image:` dans le
-compose (et retire `build: .`). Le dépôt étant **privé**, l'image l'est aussi : soit tu
-rends le *package* public sur GitHub, soit tu t'authentifies sur le VPS avant de tirer :
+compose (et retire `build: .`).
 
 ```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u guiro28 --password-stdin
+echo $GHCR_TOKEN | docker login ghcr.io -u kesurof --password-stdin
 ```
 
 (`GHCR_TOKEN` = un *Personal Access Token* GitHub avec le scope `read:packages`.)
@@ -191,6 +192,7 @@ persistée dans `data/play.key`. **Définis `PLAY_SECRET` si tu as plusieurs ré
 | `DELETE /api/addons/:id` | Supprime un addon |
 | `POST /api/settings` | Change la sortie réseau |
 | `POST /api/test-upstream` | Renvoie l'IP publique de sortie |
+| `GET /api/warp-status` | Détecte WARP et renvoie son statut et son URL |
 | `GET /:id/manifest.json` | Manifest proxifié |
 | `GET /:id/*` | Ressources proxifiées (streams réécrits) |
 | `GET /play?t=…` | Relais vidéo |

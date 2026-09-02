@@ -38,6 +38,22 @@ function hostOf(url) {
   try { return new URL(url).host; } catch { return '?'; }
 }
 
+async function checkWarp(upstream) {
+  try {
+    const { res: r } = await request('https://cloudflare.com/cdn-cgi/trace', {
+      upstream,
+      timeout: 5000,
+      headers: { accept: 'text/plain' }
+    });
+    const chunks = [];
+    for await (const c of r) chunks.push(c);
+    const match = Buffer.concat(chunks).toString('utf8').match(/^warp=(.+)$/m);
+    return match ? match[1].trim() : 'off';
+  } catch {
+    return 'unreachable';
+  }
+}
+
 // ---- Authentification (page de login) --------------------------------------
 
 app.get('/login', (req, res) => {
@@ -133,6 +149,28 @@ app.post('/api/test-upstream', async (req, res) => {
   } catch (e) {
     res.status(502).json({ ok: false, error: e.message });
   }
+});
+
+// Detecte automatiquement WARP via la sortie courante et les adresses usuelles du projet.
+app.get('/api/warp-status', async (req, res) => {
+  const current = config.getState().settings.upstream;
+  const candidates = [
+    current,
+    { mode: 'socks', url: 'socks5://warp:1080' },
+    { mode: 'socks', url: 'socks5://127.0.0.1:40000' }
+  ].filter((candidate, index, all) =>
+    all.findIndex((item) => item.mode === candidate.mode && item.url === candidate.url) === index
+  );
+
+  const results = await Promise.all(candidates.map(async (upstream) => ({
+    ...upstream,
+    status: await checkWarp(upstream)
+  })));
+  const detected = results.find((result) => result.status === 'on' || result.status === 'plus');
+
+  res.json(detected
+    ? { detected: true, status: detected.status, mode: detected.mode, url: detected.url }
+    : { detected: false, status: 'off', mode: null, url: '' });
 });
 
 // ---- Relais video ----------------------------------------------------------

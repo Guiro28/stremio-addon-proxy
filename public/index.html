@@ -83,6 +83,7 @@
         </div>
       </div>
       <div class="hint">Exemples WARP : <code>socks5://127.0.0.1:40000</code> · Proxy HTTP : <code>http://user:pass@host:port</code>. Laisse vide en mode Direct.</div>
+      <div id="warpStatus" class="out">Détection de WARP…</div>
       <div class="row" style="margin-top:14px">
         <button id="saveSettings">Enregistrer</button>
         <button id="testUp" class="ghost">Tester l'IP de sortie</button>
@@ -120,6 +121,21 @@ async function refresh() {
   $('upUrl').value = s.settings.upstream.url || '';
   $('logout').style.display = s.authEnabled ? 'inline-block' : 'none';
   renderList(s.addons);
+}
+
+async function refreshWarpStatus() {
+  const out = $('warpStatus');
+  try {
+    const warp = await api('/api/warp-status');
+    if (!warp.detected) {
+      out.textContent = 'WARP : désactivé ou introuvable'; out.className = 'out err';
+      return;
+    }
+    const via = warp.mode === 'direct' ? 'Direct (aucune URL)' : warp.url;
+    out.textContent = `WARP : ${warp.status} · URL à utiliser : ${via}`; out.className = 'out ok';
+  } catch (e) {
+    out.textContent = 'WARP : détection impossible — ' + e.message; out.className = 'out err';
+  }
 }
 
 $('logout').onclick = async () => {
@@ -202,6 +218,7 @@ $('saveSettings').onclick = async () => {
     await api('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ upstream: { mode: $('mode').value, url: $('upUrl').value } }) });
     out.textContent = 'Enregistré ✓'; out.className = 'out ok';
+    refreshWarpStatus();
   } catch (e) { out.textContent = e.message; out.className = 'out err'; }
 };
 
@@ -215,6 +232,7 @@ $('testUp').onclick = async () => {
 };
 
 refresh();
+refreshWarpStatus();
 refreshStats();
 setInterval(refreshStats, 2000);
 </script>
