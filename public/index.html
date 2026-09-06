@@ -151,6 +151,11 @@ function fmtBps(n) {
   const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
   return (n / Math.pow(1024, i)).toFixed(i ? 1 : 0) + '<small> ' + u[i] + '</small>';
 }
+function fmtMem(n) {
+  if (!n) return '0<small> Mo</small>';
+  const mo = n / (1024 * 1024);
+  return (mo >= 1024 ? (mo / 1024).toFixed(2) + '<small> Go</small>' : mo.toFixed(0) + '<small> Mo</small>');
+}
 function fmtUptime(sec) {
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
   if (d) return `${d}j ${h}h`;
@@ -164,7 +169,9 @@ async function refreshStats() {
   const tiles = [
     { k: 'Lectures en cours', v: st.playActive, live: true },
     { k: 'Bande passante', v: fmtBps(st.bandwidthBps), html: true, live: true },
-    { k: 'Lectures (total)', v: st.plays }
+    { k: 'Lectures (total)', v: st.plays },
+    { k: 'CPU', v: (st.cpuPercent ?? 0).toFixed(1) + '<small> %</small>', html: true },
+    { k: 'RAM', v: fmtMem(st.rssBytes), html: true }
   ];
   $('tiles').innerHTML = tiles.map((t) =>
     `<div class="tile${t.live ? ' live' : ''}"><div class="v">${t.html ? t.v : escapeHtml(String(t.v))}</div><div class="k">${t.k}</div></div>`

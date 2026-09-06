@@ -23,11 +23,23 @@ const s = {
   seen: new Map()        // clé -> dernier accès (pour la déduplication en sessions)
 };
 
-// Historique des octets relayés (1 point/s) pour calculer le débit instantané.
+// Historique des octets relayés (1 point/s) pour le débit + échantillonnage CPU.
 const bwHistory = [];
+let cpuPercent = 0;
+let lastCpu = process.cpuUsage(); // micros cumulés (user+system)
+let lastCpuAt = Date.now();
 const bwTimer = setInterval(() => {
-  bwHistory.push({ t: Date.now(), bytes: s.bytesRelayed });
+  const now = Date.now();
+  bwHistory.push({ t: now, bytes: s.bytesRelayed });
   while (bwHistory.length > 12) bwHistory.shift();
+
+  // CPU% du process : temps CPU consommé / temps réel écoulé (100% = un cœur plein).
+  const cu = process.cpuUsage();
+  const deltaCpu = (cu.user - lastCpu.user) + (cu.system - lastCpu.system); // micros
+  const deltaWall = (now - lastCpuAt) * 1000; // micros
+  if (deltaWall > 0) cpuPercent = (deltaCpu / deltaWall) * 100;
+  lastCpu = cu;
+  lastCpuAt = now;
 }, 1000);
 if (bwTimer.unref) bwTimer.unref();
 
@@ -124,6 +136,8 @@ function snapshot() {
     playErrors: s.playErrors,
     bytesRelayed: s.bytesRelayed,
     bandwidthBps: Math.round(currentBps()), // debit courant en octets/s
+    cpuPercent: Math.round(cpuPercent * 10) / 10, // % CPU du process (1 decimale)
+    rssBytes: process.memoryUsage().rss,          // RAM residente du process
     streamRequests: s.streamRequests,
     streamsProxied: s.streamsProxied,
     streamsTotal: s.streamsTotal,
