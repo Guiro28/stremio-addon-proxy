@@ -202,7 +202,11 @@ app.get('/play', async (req, res) => {
   if (!headers['user-agent']) headers['user-agent'] = req.headers['user-agent'] || 'Mozilla/5.0';
   if (!headers.accept) headers.accept = '*/*';
 
-  stats.playStart(addonId, target, req.method);
+  // Offset de début du Range (0 = début du fichier) pour le comptage des lectures.
+  const rangeMatch = /bytes=(\d+)-/.exec(req.headers.range || '');
+  const rangeStart = rangeMatch ? parseInt(rangeMatch[1], 10) : 0;
+
+  stats.playStart(addonId, target, req.method, rangeStart);
   let okFlag = false;
   let finished = false;
   const finish = () => { if (finished) return; finished = true; stats.playEnd(addonId, target, okFlag); };

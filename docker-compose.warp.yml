@@ -61,6 +61,10 @@ services:
       # - PLAY_SECRET=une-longue-phrase-secrete-aleatoire
       # Durée de validité des liens /play, en heures (défaut 12 ; 0 = jamais).
       # - PLAY_TTL_HOURS=12
+      # Comptage des lectures : au-dela de X minutes sans activite sur un flux, une
+      # reprise est comptee comme une nouvelle lecture (defaut 30). Sous ce seuil,
+      # les pauses de buffering ne sont pas recomptees.
+      # - SESSION_GAP_MIN=30
       # URL publique si derriere Nginx Proxy Manager en HTTPS :
       # - PUBLIC_URL=https://proxy.mondomaine.com
     volumes:

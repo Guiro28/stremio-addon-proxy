@@ -1,13 +1,19 @@
 // Compteurs en memoire (remis a zero au redemarrage du process).
 //
 // Nuance importante : une seule lecture Stremio genere plusieurs requetes /play
-// (1 HEAD + plusieurs GET Range pour bufferiser). On distingue donc :
-//   - sessions  : lectures distinctes (dedupliquees par URL sur une fenetre)
+// (1 HEAD + plusieurs GET Range pour bufferiser, + des reprises apres buffer). On
+// distingue donc :
+//   - sessions  : lectures distinctes = requete GET au DEBUT du fichier (offset 0).
+//                 Les reprises apres buffering visent un offset > 0 -> non comptees.
 //   - requests  : total brut des requetes /play
 //   - active    : nombre de VIDEOS en cours (pas de connexions)
 
 const startedAt = Date.now();
-const SESSION_GAP_MS = 5 * 60 * 1000; // 2 requetes du meme flux a +5min = nouvelle lecture
+const ACTIVE_WINDOW_MS = 5 * 60 * 1000; // fenêtre de grâce "lectures en cours"
+const START_DEDUP_MS = (Number(process.env.START_DEDUP_SEC) > 0 ? Number(process.env.START_DEDUP_SEC) : 15) * 1000; // fusionne les sondes de démarrage
+// Au-delà de ce temps SANS activité sur un flux, une reprise = nouvelle lecture
+// (distingue une pause de buffering d'une reprise "plus tard"). Réglable via env.
+const RESUME_GAP_MS = (Number(process.env.SESSION_GAP_MIN) > 0 ? Number(process.env.SESSION_GAP_MIN) : 30) * 60 * 1000;
 
 const s = {
   sessions: 0,
@@ -20,7 +26,8 @@ const s = {
   lastActivity: null,
   perAddon: {},          // id -> { name, plays, streamHits }
   activeUrls: new Map(), // clé -> nb de connexions ouvertes (taille = flux actifs)
-  seen: new Map()        // clé -> dernier accès (pour la déduplication en sessions)
+  seen: new Map(),       // clé -> dernier accès (fenêtre de grâce "en cours")
+  started: new Map()     // clé -> dernier démarrage (offset 0) déjà compté
 };
 
 // Historique des octets relayés (1 point/s) pour le débit + échantillonnage CPU.
@@ -46,7 +53,6 @@ if (bwTimer.unref) bwTimer.unref();
 // "Lectures en cours" avec fenêtre de grâce : un flux reste compté tant qu'il a eu
 // une requête dans les dernières minutes (couvre les pauses de buffer du lecteur).
 // = connexions ouvertes maintenant  ∪  flux vus récemment.
-const ACTIVE_WINDOW_MS = SESSION_GAP_MS; // 5 min
 function activeCount() {
   const now = Date.now();
   const keys = new Set(s.activeUrls.keys());
@@ -77,24 +83,40 @@ function ensure(id, name) {
   return s.perAddon[id];
 }
 
-function isNewSession(key) {
+function prune(map, maxAge) {
+  if (map.size <= 500) return;
   const now = Date.now();
-  const last = s.seen.get(key);
-  s.seen.set(key, now);
-  if (s.seen.size > 500) {
-    for (const [k, t] of s.seen) if (now - t > SESSION_GAP_MS) s.seen.delete(k);
-  }
-  return !last || now - last > SESSION_GAP_MS;
+  for (const [k, t] of map) if (now - t > maxAge) map.delete(k);
 }
 
-function playStart(addonId, url, method) {
+function playStart(addonId, url, method, rangeStart) {
   s.requests++;
   const key = (addonId || '') + '|' + url;
+  const now = Date.now();
+
+  // Connexions ouvertes (flux actifs bruts).
   s.activeUrls.set(key, (s.activeUrls.get(key) || 0) + 1);
-  // Une nouvelle "lecture" = premiere requete GET vers une URL pas vue recemment.
-  if (method !== 'HEAD' && isNewSession(key)) {
-    s.sessions++;
-    if (addonId) ensure(addonId).plays++;
+
+  // Dernière activité de ce flux (avant mise à jour) -> sert au gap de reprise.
+  const last = s.seen.get(key);
+  s.seen.set(key, now);
+  prune(s.seen, RESUME_GAP_MS);
+
+  // Une "lecture" est comptée si : requête GET au DÉBUT du fichier (offset 0), OU
+  // reprise après une longue inactivité (> RESUME_GAP_MS). Les reprises de buffering
+  // (offset > 0, gap court) ne comptent pas -> plus de sur-comptage.
+  if (method !== 'HEAD') {
+    const freshStart = rangeStart === 0;
+    const longGap = !last || (now - last > RESUME_GAP_MS);
+    if (freshStart || longGap) {
+      const lastCounted = s.started.get(key);
+      if (!lastCounted || now - lastCounted > START_DEDUP_MS) {
+        s.sessions++;
+        if (addonId) ensure(addonId).plays++;
+      }
+      s.started.set(key, now);
+      prune(s.started, START_DEDUP_MS);
+    }
   }
   touch();
 }
