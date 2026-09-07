@@ -167,9 +167,7 @@ async function refreshStats() {
   try { st = await api('/api/stats'); } catch { return; }
   $('uptime').textContent = 'uptime ' + fmtUptime(st.uptimeSec);
   const tiles = [
-    { k: 'Lectures en cours', v: st.playActive, live: true },
     { k: 'Bande passante', v: fmtBps(st.bandwidthBps), html: true, live: true },
-    { k: 'Lectures (total)', v: st.plays },
     { k: 'CPU', v: (st.cpuPercent ?? 0).toFixed(1) + '<small> %</small>', html: true },
     { k: 'RAM', v: fmtMem(st.rssBytes), html: true }
   ];

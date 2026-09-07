@@ -78,12 +78,7 @@ app.post('/api/logout', (req, res) => {
 // ---- API interface ---------------------------------------------------------
 
 app.get('/api/stats', (req, res) => {
-  const st = config.getState();
-  res.json({
-    ...stats.snapshot(),
-    addonsConfigured: st.addons.length,
-    upstreamMode: st.settings.upstream.mode
-  });
+  res.json(stats.snapshot());
 });
 
 app.get('/api/state', (req, res) => {
@@ -185,12 +180,11 @@ app.get('/api/warp-status', async (req, res) => {
 
 app.get('/play', async (req, res) => {
   cors(res);
-  let target, extraHeaders, addonId;
+  let target, extraHeaders;
   try {
     const decoded = decodeToken(req.query.t);
     target = decoded.url;
     extraHeaders = decoded.headers;
-    addonId = decoded.addonId;
   } catch (e) {
     return e.expired
       ? res.status(410).send('Lien expiré')
@@ -202,15 +196,6 @@ app.get('/play', async (req, res) => {
   if (!headers['user-agent']) headers['user-agent'] = req.headers['user-agent'] || 'Mozilla/5.0';
   if (!headers.accept) headers.accept = '*/*';
 
-  // Offset de début du Range (0 = début du fichier) pour le comptage des lectures.
-  const rangeMatch = /bytes=(\d+)-/.exec(req.headers.range || '');
-  const rangeStart = rangeMatch ? parseInt(rangeMatch[1], 10) : 0;
-
-  stats.playStart(addonId, target, req.method, rangeStart);
-  let okFlag = false;
-  let finished = false;
-  const finish = () => { if (finished) return; finished = true; stats.playEnd(addonId, target, okFlag); };
-
   try {
     const upstream = config.getState().settings.upstream;
     log(`[play] ${req.method} host=${hostOf(target)} via=${upstream.mode}${upstream.url ? '(' + upstream.url + ')' : ''} range=${req.headers.range ? 'oui' : 'non'}`);
@@ -220,7 +205,6 @@ app.get('/play', async (req, res) => {
       method: req.method === 'HEAD' ? 'HEAD' : 'GET',
       timeout: 30000
     });
-    okFlag = (origin.statusCode || 0) < 400;
     log(`[play] -> ${origin.statusCode} host=${hostOf(target)} (${origin.headers['content-type'] || '?'})`);
 
     res.status(origin.statusCode || 502);
@@ -231,15 +215,11 @@ app.get('/play', async (req, res) => {
     for (const h of pass) if (origin.headers[h]) res.setHeader(h, origin.headers[h]);
     if (!origin.headers['accept-ranges']) res.setHeader('Accept-Ranges', 'bytes');
 
-    origin.on('data', (c) => { stats.addBytes(c.length); });
-    origin.on('end', finish);
-    origin.on('error', () => { finish(); res.destroy(); });
+    origin.on('data', (c) => { stats.addBytes(c.length); }); // pour la bande passante
+    origin.on('error', () => res.destroy());
     req.on('close', () => origin.destroy());
-    res.on('close', finish);
     origin.pipe(res);
   } catch (e) {
-    okFlag = false;
-    finish();
     if (!res.headersSent) res.status(502).send('Erreur de relais : ' + e.message);
   }
 });
@@ -277,7 +257,6 @@ app.get('/:addonId/*rest', async (req, res) => {
     const upstream = config.getState().settings.upstream;
     const out = await fetchResource(addon, restPath, query, baseUrl(req), upstream);
     if (restPath.startsWith('stream/')) {
-      stats.recordStream(addon, out.proxied, out.total);
       log(`[stream] addon=${addon.name} ${restPath} -> ${out.proxied}/${out.total} flux proxifies`);
     }
     res.status(out.status);
