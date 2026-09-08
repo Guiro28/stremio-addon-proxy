@@ -77,6 +77,16 @@ function renameAddon(id, displayName) {
   return addon;
 }
 
+// Change l'URL source d'un addon en conservant son id (donc son URL d'installation).
+function setAddonUrl(id, manifestUrl) {
+  const addon = state.addons.find((a) => a.id === id);
+  const url = String(manifestUrl || '').trim();
+  if (!addon || !url) return null;
+  addon.manifestUrl = url;
+  save();
+  return addon;
+}
+
 function removeAddon(id) {
   const before = state.addons.length;
   state.addons = state.addons.filter((a) => a.id !== id);
@@ -101,4 +111,4 @@ function setSettings(next) {
 
 load();
 
-module.exports = { load, save, getState, getAddon, addAddon, removeAddon, renameAddon, setSettings, DATA_DIR };
+module.exports = { load, save, getState, getAddon, addAddon, removeAddon, renameAddon, setAddonUrl, setSettings, DATA_DIR };

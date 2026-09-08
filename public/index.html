@@ -36,6 +36,8 @@
     .addon .name { font-weight: 600; }
     .addon .name input.rename { width: auto; min-width: 180px; padding: 4px 8px; margin-right: 6px;
       font-size: 13px; font-weight: 400; display: inline-block; }
+    .addon .hint input.editurl { width: min(60%, 380px); padding: 4px 8px; margin: 0 6px;
+      font-size: 12px; display: inline-block; }
     .addon .url { color: var(--muted); font-size: 12px; word-break: break-all; }
     .addon .actions { display: flex; gap: 8px; }
     .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px;
@@ -195,6 +197,7 @@ function renderList(addons) {
         <a href="${stremioLink}"><button class="small">Installer</button></a>
         <button class="small ghost" data-copy="${encodeURIComponent(a.installUrl)}">Copier</button>
         <button class="small ghost" data-rename="${a.id}" data-current="${encodeURIComponent(display)}">Renommer</button>
+        <button class="small ghost" data-edit="${a.id}" data-url="${encodeURIComponent(a.manifestUrl || '')}">Modifier</button>
         <button class="small danger" data-del="${a.id}">Suppr.</button>
       </div>`;
     el.appendChild(div);
@@ -224,6 +227,34 @@ function renderList(addons) {
     };
     nameDiv.querySelector('[data-save]').onclick = save;
     nameDiv.querySelector('[data-cancel]').onclick = () => refresh();
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') save();
+      if (e.key === 'Escape') refresh();
+    });
+  });
+  el.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => {
+    const id = b.dataset.edit;
+    const hintDiv = b.closest('.addon').querySelector('.hint');
+    const current = decodeURIComponent(b.dataset.url);
+    hintDiv.innerHTML = `URL source : <input class="editurl" value="${escapeHtml(current)}" />`
+      + `<button class="small" data-saveurl>✓</button>`
+      + `<button class="small ghost" data-cancelurl>✗</button>`;
+    const input = hintDiv.querySelector('input');
+    input.focus(); input.select();
+    const save = async () => {
+      const val = input.value.trim();
+      if (!val) return;
+      const btn = hintDiv.querySelector('[data-saveurl]');
+      btn.disabled = true; btn.textContent = '…'; // validation réseau
+      try {
+        await api('/api/addons/' + id, { method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manifestUrl: val }) });
+        refresh();
+      } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = '✓'; }
+    };
+    hintDiv.querySelector('[data-saveurl]').onclick = save;
+    hintDiv.querySelector('[data-cancelurl]').onclick = () => refresh();
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') save();
       if (e.key === 'Escape') refresh();

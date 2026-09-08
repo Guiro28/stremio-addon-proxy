@@ -190,7 +190,7 @@ persistée dans `data/play.key`. **Définis `PLAY_SECRET` si tu as plusieurs ré
 | `GET /api/state` | Réglages + liste des addons |
 | `POST /api/addons` | Ajoute un addon (`{ manifestUrl }`) |
 | `DELETE /api/addons/:id` | Supprime un addon |
-| `PATCH /api/addons/:id` | Renomme un addon (nom affiché dans Stremio) |
+| `PATCH /api/addons/:id` | Renomme un addon (`displayName`) ou change son URL source (`manifestUrl`), sans changer l'`id`/l'URL d'installation |
 | `POST /api/settings` | Change la sortie réseau |
 | `POST /api/test-upstream` | Renvoie l'IP publique de sortie |
 | `GET /api/warp-status` | Détecte WARP et renvoie son statut et son URL |

@@ -94,24 +94,27 @@ app.get('/api/state', (req, res) => {
   });
 });
 
-app.post('/api/addons', async (req, res) => {
-  let manifestUrl = (req.body && req.body.manifestUrl || '').trim();
-  if (!manifestUrl) return res.status(400).json({ error: 'manifestUrl requis' });
-
-  // Tolerance: stremio:// et URLs sans /manifest.json
+// Normalise une URL d'addon (tolère stremio:// et l'absence de /manifest.json),
+// récupère le manifest et le valide. Renvoie { manifestUrl, manifest } ou lève.
+async function fetchAndValidateManifest(rawUrl) {
+  let manifestUrl = (rawUrl || '').trim();
+  if (!manifestUrl) throw new Error('URL requise');
   manifestUrl = manifestUrl.replace(/^stremio:\/\//i, 'https://');
   if (!/\/manifest\.json/i.test(manifestUrl)) {
     manifestUrl = manifestUrl.replace(/\/+$/, '') + '/manifest.json';
   }
+  const upstream = config.getState().settings.upstream;
+  const { res: r } = await request(manifestUrl, { upstream, headers: { accept: 'application/json' } });
+  const chunks = [];
+  for await (const c of r) chunks.push(c);
+  const manifest = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  if (!manifest || !manifest.id) throw new Error('Manifest sans id');
+  return { manifestUrl, manifest };
+}
 
+app.post('/api/addons', async (req, res) => {
   try {
-    const upstream = config.getState().settings.upstream;
-    const { res: r } = await request(manifestUrl, { upstream, headers: { accept: 'application/json' } });
-    const chunks = [];
-    for await (const c of r) chunks.push(c);
-    const manifest = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    if (!manifest || !manifest.id) throw new Error('Manifest sans id');
-
+    const { manifestUrl, manifest } = await fetchAndValidateManifest(req.body && req.body.manifestUrl);
     const addon = config.addAddon({ name: manifest.name || manifest.id, manifestUrl });
     res.json({ ...addon, installUrl: `${baseUrl(req)}/${addon.id}/manifest.json` });
   } catch (e) {
@@ -124,11 +127,30 @@ app.delete('/api/addons/:id', (req, res) => {
   res.status(ok ? 200 : 404).json({ ok });
 });
 
-// Renomme un addon (nom affiche dans Stremio).
-app.patch('/api/addons/:id', (req, res) => {
-  const addon = config.renameAddon(req.params.id, req.body && req.body.displayName);
-  if (!addon) return res.status(400).json({ error: 'Nom invalide ou addon inconnu' });
-  res.json(addon);
+// Modifie un addon : renommage (displayName) OU changement d'URL source (manifestUrl).
+// L'id — donc l'URL d'installation — reste inchangé dans tous les cas.
+app.patch('/api/addons/:id', async (req, res) => {
+  const body = req.body || {};
+
+  if (typeof body.displayName === 'string') {
+    const addon = config.renameAddon(req.params.id, body.displayName);
+    if (!addon) return res.status(400).json({ error: 'Nom invalide ou addon inconnu' });
+    return res.json(addon);
+  }
+
+  if (typeof body.manifestUrl === 'string') {
+    let manifestUrl;
+    try {
+      ({ manifestUrl } = await fetchAndValidateManifest(body.manifestUrl));
+    } catch (e) {
+      return res.status(400).json({ error: 'Manifest injoignable ou invalide : ' + e.message });
+    }
+    const addon = config.setAddonUrl(req.params.id, manifestUrl);
+    if (!addon) return res.status(404).json({ error: 'Addon inconnu' });
+    return res.json({ ...addon, installUrl: `${baseUrl(req)}/${addon.id}/manifest.json` });
+  }
+
+  res.status(400).json({ error: 'Rien à modifier' });
 });
 
 app.post('/api/settings', (req, res) => {
