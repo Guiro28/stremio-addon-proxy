@@ -30,23 +30,25 @@
 <body>
   <form class="card" id="form">
     <h1>🎬 Stremio Addon Proxy</h1>
-    <p class="sub">Connexion à l'interface d'administration</p>
-    <label for="user">Identifiant</label>
+    <p class="sub" data-i18n="loginSub"></p>
+    <label for="user" data-i18n="user"></label>
     <input id="user" name="user" autocomplete="username" autofocus />
-    <label for="pass">Mot de passe</label>
+    <label for="pass" data-i18n="password"></label>
     <input id="pass" name="pass" type="password" autocomplete="current-password" />
-    <button type="submit" id="btn">Se connecter</button>
+    <button type="submit" id="btn" data-i18n="signIn"></button>
     <div class="err" id="err"></div>
   </form>
 
+  <script src="/i18n.js"></script>
   <script>
+    I18n.apply(); // détection auto + choix mémorisé (partagé avec le dashboard)
     const form = document.getElementById('form');
     const btn = document.getElementById('btn');
     const err = document.getElementById('err');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       err.textContent = '';
-      btn.disabled = true; btn.textContent = 'Connexion…';
+      btn.disabled = true; btn.textContent = I18n.t('connecting');
       try {
         const r = await fetch('/api/login', {
           method: 'POST',
@@ -55,11 +57,11 @@
         });
         if (r.ok) { window.location.href = '/'; return; }
         const d = await r.json().catch(() => ({}));
-        err.textContent = d.error || 'Échec de la connexion';
+        err.textContent = d.error || I18n.t('loginFailed');
       } catch (e) {
-        err.textContent = 'Erreur réseau';
+        err.textContent = I18n.t('netError');
       }
-      btn.disabled = false; btn.textContent = 'Se connecter';
+      btn.disabled = false; btn.textContent = I18n.t('signIn');
     });
   </script>
 </body>

@@ -55,6 +55,8 @@
     .tile .v small { font-size: 13px; font-weight: 600; color: var(--muted); }
     .tile .k { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .04em; }
     .tile.live .v { color: var(--accent2); }
+    .langsel { background: #262b47; color: var(--fg); border: 1px solid var(--line); border-radius: 9px;
+      padding: 6px 8px; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -62,56 +64,66 @@
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
       <div>
         <h1>🎬 Stremio Addon Proxy</h1>
-        <p class="sub">Ajoute un addon, colle le lien « proxifié » généré dans Stremio. Les flux vidéo HTTP/HTTPS passeront par ce serveur.</p>
+        <p class="sub" data-i18n="subtitle"></p>
       </div>
-      <button id="logout" class="ghost small" style="display:none; white-space:nowrap;">Déconnexion</button>
+      <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+        <select id="lang" class="langsel" title="Language">
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+          <option value="es">Español</option>
+          <option value="de">Deutsch</option>
+          <option value="it">Italiano</option>
+        </select>
+        <button id="logout" class="ghost small" style="display:none; white-space:nowrap;" data-i18n="logout"></button>
+      </div>
     </div>
 
     <div class="card">
-      <h2>Statistiques <span class="pill" id="uptime">—</span></h2>
+      <h2><span data-i18n="stats"></span> <span class="pill" id="uptime">—</span></h2>
       <div class="tiles" id="tiles"></div>
     </div>
 
     <div class="card">
-      <h2>Sortie réseau</h2>
+      <h2 data-i18n="network"></h2>
       <div class="row">
         <div style="flex:1">
-          <label>Mode</label>
+          <label data-i18n="mode"></label>
           <select id="mode">
-            <option value="direct">Direct — IP du serveur</option>
-            <option value="socks">SOCKS5 — WARP / VPN</option>
-            <option value="http">Proxy HTTP</option>
+            <option value="direct" data-i18n="modeDirect"></option>
+            <option value="socks" data-i18n="modeSocks"></option>
+            <option value="http" data-i18n="modeHttp"></option>
           </select>
         </div>
         <div style="flex:2">
-          <label>URL du proxy (si SOCKS/HTTP)</label>
+          <label data-i18n="proxyUrl"></label>
           <input id="upUrl" placeholder="socks5://127.0.0.1:40000" />
         </div>
       </div>
-      <div class="hint">Exemples WARP : <code>socks5://127.0.0.1:40000</code> · Proxy HTTP : <code>http://user:pass@host:port</code>. Laisse vide en mode Direct.</div>
-      <div id="warpStatus" class="out">Détection de WARP…</div>
+      <div class="hint" data-i18n-html="networkHint"></div>
+      <div id="warpStatus" class="out" data-i18n="warpDetecting"></div>
       <div class="row" style="margin-top:14px">
-        <button id="saveSettings">Enregistrer</button>
-        <button id="testUp" class="ghost">Tester l'IP de sortie</button>
+        <button id="saveSettings" data-i18n="save"></button>
+        <button id="testUp" class="ghost" data-i18n="testIp"></button>
       </div>
       <div id="settingsOut" class="out"></div>
     </div>
 
     <div class="card">
-      <h2>Ajouter un addon</h2>
-      <label>URL du manifest de l'addon</label>
+      <h2 data-i18n="addAddon"></h2>
+      <label data-i18n="manifestUrlLabel"></label>
       <input id="manifestUrl" placeholder="https://exemple-addon.com/manifest.json" />
-      <div class="hint">Colle l'URL <code>…/manifest.json</code> de l'addon (celle que tu mettrais normalement dans Stremio).</div>
-      <div style="margin-top:14px"><button id="addBtn">Ajouter</button></div>
+      <div class="hint" data-i18n-html="addHint"></div>
+      <div style="margin-top:14px"><button id="addBtn" data-i18n="add"></button></div>
       <div id="addOut" class="out"></div>
     </div>
 
     <div class="card">
-      <h2>Addons proxifiés</h2>
+      <h2 data-i18n="proxied"></h2>
       <div id="list"></div>
     </div>
   </div>
 
+<script src="/i18n.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 async function api(url, opts) {
@@ -134,13 +146,13 @@ async function refreshWarpStatus() {
   try {
     const warp = await api('/api/warp-status');
     if (!warp.detected) {
-      out.textContent = 'WARP : désactivé ou introuvable'; out.className = 'out err';
+      out.textContent = I18n.t('warpNone'); out.className = 'out err';
       return;
     }
-    const via = warp.mode === 'direct' ? 'Direct (aucune URL)' : warp.url;
-    out.textContent = `WARP : ${warp.status} · URL à utiliser : ${via}`; out.className = 'out ok';
+    const via = warp.mode === 'direct' ? I18n.t('warpDirect') : warp.url;
+    out.textContent = `WARP : ${warp.status} · ${I18n.t('warpUse')} ${via}`; out.className = 'out ok';
   } catch (e) {
-    out.textContent = 'WARP : détection impossible — ' + e.message; out.className = 'out err';
+    out.textContent = I18n.t('warpFail') + ' ' + e.message; out.className = 'out err';
   }
 }
 
@@ -149,29 +161,32 @@ $('logout').onclick = async () => {
   window.location.href = '/login';
 };
 
+function byteU() { return I18n.current() === 'fr' ? 'o' : 'B'; } // octet (FR) vs byte
 function fmtBps(n) {
-  if (!n || n < 1) return '0<small> o/s</small>';
-  const u = ['o/s', 'Ko/s', 'Mo/s', 'Go/s'];
+  const b = byteU();
+  if (!n || n < 1) return '0<small> ' + b + '/s</small>';
+  const u = ['', 'K', 'M', 'G'];
   const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
-  return (n / Math.pow(1024, i)).toFixed(i ? 1 : 0) + '<small> ' + u[i] + '</small>';
+  return (n / Math.pow(1024, i)).toFixed(i ? 1 : 0) + '<small> ' + u[i] + b + '/s</small>';
 }
 function fmtMem(n) {
-  if (!n) return '0<small> Mo</small>';
+  const b = byteU();
+  if (!n) return '0<small> M' + b + '</small>';
   const mo = n / (1024 * 1024);
-  return (mo >= 1024 ? (mo / 1024).toFixed(2) + '<small> Go</small>' : mo.toFixed(0) + '<small> Mo</small>');
+  return (mo >= 1024 ? (mo / 1024).toFixed(2) + '<small> G' + b + '</small>' : mo.toFixed(0) + '<small> M' + b + '</small>');
 }
 function fmtUptime(sec) {
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
-  if (d) return `${d}j ${h}h`;
-  if (h) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (d) return `${d}${I18n.t('dayU')} ${h}${I18n.t('hourU')}`;
+  if (h) return `${h}${I18n.t('hourU')} ${m}${I18n.t('minU')}`;
+  return `${m}${I18n.t('minU')}`;
 }
 async function refreshStats() {
   let st;
   try { st = await api('/api/stats'); } catch { return; }
-  $('uptime').textContent = 'uptime ' + fmtUptime(st.uptimeSec);
+  $('uptime').textContent = I18n.t('uptime') + ' ' + fmtUptime(st.uptimeSec);
   const tiles = [
-    { k: 'Bande passante', v: fmtBps(st.bandwidthBps), html: true, live: true },
+    { k: I18n.t('bandwidth'), v: fmtBps(st.bandwidthBps), html: true, live: true },
     { k: 'CPU', v: (st.cpuPercent ?? 0).toFixed(1) + '<small> %</small>', html: true },
     { k: 'RAM', v: fmtMem(st.rssBytes), html: true }
   ];
@@ -182,7 +197,7 @@ async function refreshStats() {
 
 function renderList(addons) {
   const el = $('list');
-  if (!addons.length) { el.innerHTML = '<p class="hint">Aucun addon pour l\'instant.</p>'; return; }
+  if (!addons.length) { el.innerHTML = `<p class="hint">${escapeHtml(I18n.t('noAddons'))}</p>`; return; }
   el.innerHTML = '';
   for (const a of addons) {
     const stremioLink = a.installUrl.replace(/^https?:\/\//, 'stremio://');
@@ -193,15 +208,15 @@ function renderList(addons) {
       ${a.logo ? `<img class="addon-logo" src="${escapeHtml(a.logo)}" alt="" onerror="this.remove()" />` : ''}
       <div style="flex:1; min-width:0">
         <div class="name">${escapeHtml(display)}</div>
-        <div class="hint" style="margin-top:0">d'origine : ${escapeHtml(a.name)}</div>
+        <div class="hint" style="margin-top:0">${escapeHtml(I18n.t('origin'))} ${escapeHtml(a.name)}</div>
         <div class="url">${escapeHtml(a.installUrl)}</div>
       </div>
       <div class="actions">
-        <a href="${stremioLink}"><button class="small">Installer</button></a>
-        <button class="small ghost" data-copy="${encodeURIComponent(a.installUrl)}">Copier</button>
-        <button class="small ghost" data-rename="${a.id}" data-current="${encodeURIComponent(display)}">Renommer</button>
-        <button class="small ghost" data-edit="${a.id}" data-url="${encodeURIComponent(a.manifestUrl || '')}">Modifier</button>
-        <button class="small danger" data-del="${a.id}">Suppr.</button>
+        <a href="${stremioLink}"><button class="small">${escapeHtml(I18n.t('install'))}</button></a>
+        <button class="small ghost" data-copy="${encodeURIComponent(a.installUrl)}">${escapeHtml(I18n.t('copy'))}</button>
+        <button class="small ghost" data-rename="${a.id}" data-current="${encodeURIComponent(display)}">${escapeHtml(I18n.t('rename'))}</button>
+        <button class="small ghost" data-edit="${a.id}" data-url="${encodeURIComponent(a.manifestUrl || '')}">${escapeHtml(I18n.t('edit'))}</button>
+        <button class="small danger" data-del="${a.id}">${escapeHtml(I18n.t('del'))}</button>
       </div>`;
     el.appendChild(div);
   }
@@ -239,7 +254,7 @@ function renderList(addons) {
     const id = b.dataset.edit;
     const hintDiv = b.closest('.addon').querySelector('.hint');
     const current = decodeURIComponent(b.dataset.url);
-    hintDiv.innerHTML = `URL source : <input class="editurl" value="${escapeHtml(current)}" />`
+    hintDiv.innerHTML = `${escapeHtml(I18n.t('sourceUrl'))} <input class="editurl" value="${escapeHtml(current)}" />`
       + `<button class="small" data-saveurl>✓</button>`
       + `<button class="small ghost" data-cancelurl>✗</button>`;
     const input = hintDiv.querySelector('input');
@@ -265,41 +280,46 @@ function renderList(addons) {
   });
   el.querySelectorAll('[data-copy]').forEach((b) => b.onclick = async () => {
     await navigator.clipboard.writeText(decodeURIComponent(b.dataset.copy));
-    b.textContent = 'Copié ✓'; setTimeout(() => b.textContent = 'Copier', 1200);
+    b.textContent = I18n.t('copied'); setTimeout(() => b.textContent = I18n.t('copy'), 1200);
   });
 }
 
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 $('addBtn').onclick = async () => {
-  const out = $('addOut'); out.textContent = 'Vérification…'; out.className = 'out';
+  const out = $('addOut'); out.textContent = I18n.t('checking'); out.className = 'out';
   try {
     await api('/api/addons', { method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ manifestUrl: $('manifestUrl').value }) });
     $('manifestUrl').value = '';
-    out.textContent = 'Addon ajouté ✓'; out.className = 'out ok';
+    out.textContent = I18n.t('addedOk'); out.className = 'out ok';
     refresh();
   } catch (e) { out.textContent = e.message; out.className = 'out err'; }
 };
 
 $('saveSettings').onclick = async () => {
-  const out = $('settingsOut'); out.textContent = 'Enregistrement…'; out.className = 'out';
+  const out = $('settingsOut'); out.textContent = I18n.t('saving'); out.className = 'out';
   try {
     await api('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ upstream: { mode: $('mode').value, url: $('upUrl').value } }) });
-    out.textContent = 'Enregistré ✓'; out.className = 'out ok';
+    out.textContent = I18n.t('savedOk'); out.className = 'out ok';
     refreshWarpStatus();
   } catch (e) { out.textContent = e.message; out.className = 'out err'; }
 };
 
 $('testUp').onclick = async () => {
-  const out = $('settingsOut'); out.textContent = 'Test en cours…'; out.className = 'out';
+  const out = $('settingsOut'); out.textContent = I18n.t('testing'); out.className = 'out';
   try {
     const r = await api('/api/test-upstream', { method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ upstream: { mode: $('mode').value, url: $('upUrl').value } }) });
-    out.textContent = `IP de sortie (${r.mode}) : ${r.ip}`; out.className = 'out ok';
-  } catch (e) { out.textContent = 'Échec : ' + e.message; out.className = 'out err'; }
+    out.textContent = `${I18n.t('exitIp')} (${r.mode}) : ${r.ip}`; out.className = 'out ok';
+  } catch (e) { out.textContent = I18n.t('failed') + ' ' + e.message; out.className = 'out err'; }
 };
+
+// i18n : sélecteur de langue + application initiale
+$('lang').value = I18n.current();
+$('lang').onchange = () => { I18n.set($('lang').value); refresh(); refreshStats(); refreshWarpStatus(); };
+I18n.apply();
 
 refresh();
 refreshWarpStatus();
