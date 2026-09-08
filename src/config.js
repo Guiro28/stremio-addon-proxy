@@ -58,11 +58,12 @@ function getAddon(id) {
   return state.addons.find((a) => a.id === id);
 }
 
-function addAddon({ name, manifestUrl }) {
+function addAddon({ name, manifestUrl, logo }) {
   const id = crypto.randomBytes(5).toString('hex');
   // name = nom d'origine du manifest. displayName = ce qui s'affiche dans Stremio,
   // modifiable ensuite depuis le dashboard (défaut : "<nom d'origine> (proxy)").
-  const addon = { id, name, displayName: `${name} (proxy)`, manifestUrl, addedAt: new Date().toISOString() };
+  // logo = icône de l'addon (champ logo du manifest), pour l'afficher au dashboard.
+  const addon = { id, name, displayName: `${name} (proxy)`, manifestUrl, logo: logo || '', addedAt: new Date().toISOString() };
   state.addons.push(addon);
   save();
   return addon;
@@ -78,11 +79,13 @@ function renameAddon(id, displayName) {
 }
 
 // Change l'URL source d'un addon en conservant son id (donc son URL d'installation).
-function setAddonUrl(id, manifestUrl) {
+// Rafraîchit aussi le logo depuis le nouveau manifest.
+function setAddonUrl(id, manifestUrl, logo) {
   const addon = state.addons.find((a) => a.id === id);
   const url = String(manifestUrl || '').trim();
   if (!addon || !url) return null;
   addon.manifestUrl = url;
+  if (logo !== undefined) addon.logo = logo || '';
   save();
   return addon;
 }

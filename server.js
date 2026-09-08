@@ -115,7 +115,7 @@ async function fetchAndValidateManifest(rawUrl) {
 app.post('/api/addons', async (req, res) => {
   try {
     const { manifestUrl, manifest } = await fetchAndValidateManifest(req.body && req.body.manifestUrl);
-    const addon = config.addAddon({ name: manifest.name || manifest.id, manifestUrl });
+    const addon = config.addAddon({ name: manifest.name || manifest.id, manifestUrl, logo: manifest.logo });
     res.json({ ...addon, installUrl: `${baseUrl(req)}/${addon.id}/manifest.json` });
   } catch (e) {
     res.status(400).json({ error: 'Manifest injoignable ou invalide : ' + e.message });
@@ -139,13 +139,13 @@ app.patch('/api/addons/:id', async (req, res) => {
   }
 
   if (typeof body.manifestUrl === 'string') {
-    let manifestUrl;
+    let manifestUrl, manifest;
     try {
-      ({ manifestUrl } = await fetchAndValidateManifest(body.manifestUrl));
+      ({ manifestUrl, manifest } = await fetchAndValidateManifest(body.manifestUrl));
     } catch (e) {
       return res.status(400).json({ error: 'Manifest injoignable ou invalide : ' + e.message });
     }
-    const addon = config.setAddonUrl(req.params.id, manifestUrl);
+    const addon = config.setAddonUrl(req.params.id, manifestUrl, manifest.logo);
     if (!addon) return res.status(404).json({ error: 'Addon inconnu' });
     return res.json({ ...addon, installUrl: `${baseUrl(req)}/${addon.id}/manifest.json` });
   }
